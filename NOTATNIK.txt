@@ -97,8 +97,8 @@ KROKI
      w wersji sekwencyjnej 0.86 s (po jednym uruchomieniu).
 7. Repozytorium: .gitattributes wymusza końce linii LF, bo przy core.autocrlf=true
    klon na Windowsie dostawał CRLF i testy.sh nie działał w kontenerze.
-8. README.md dla prowadzącego: treść karty tematu, zakres, podział pracy,
-   budowanie, uruchomienie, formaty plików, testy, metoda.
+8. README.md dla prowadzącego, wersja krótka: zakres realizacji, podział pracy,
+   uruchomienie, struktura repozytorium.
 9. Poprawka testy.sh: na 4 CPU mpirun -np 12 się nie uruchamiał, a test pokazywał
    OK, bo porównywał stary plik wyniku. Teraz plik wyniku jest kasowany przed
    każdym uruchomieniem, liczy się kod wyjścia, a mpirun ma --oversubscribe.
