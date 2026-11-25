@@ -1,0 +1,5 @@
+*.o
+/generator
+/jaccard_sekw
+/jaccard_omp
+/jaccard_mpi
