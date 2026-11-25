@@ -1,0 +1,124 @@
+NOTATNIK - projekt PRiR, temat 34 (D05): podobieństwo zbiorów i szkice danych
+================================================================================
+
+Zespół 2-osobowy. Zakres: porównania zadanej listy par (zakres podstawowy)
+oraz wyszukiwanie top-k względem zapytań (dodatek dla 2 osób).
+
+
+USTALENIA
+---------
+- Dane: zbiory tokenów, token to liczba całkowita od 0 do 2147483646.
+  Plik zbiorów: w pierwszej linii liczba zbiorów, potem w każdej linii rozmiar
+  zbioru i jego tokeny (mogą się powtarzać, kolejność dowolna).
+  Plik par: w pierwszej linii liczba par, potem pary numerów zbiorów (od 0).
+- Generator: zapytania to wzorce z losowymi tokenami. Zbiór i korpusu ma wzorzec
+  i % (liczba zapytań), rozmiar losowy z [rozmiar_min, rozmiar_max] i część wspólną
+  z wzorcem: u * min(rozmiar, rozmiar wzorca), u losowe z [udzial_min, udzial_max].
+  Reszta to losowe tokeny. Pary są losowane spośród zbiorów z tym samym wzorcem.
+  Generator: splitmix64 z ziarnem z wiersza poleceń.
+- Programy usuwają duplikaty (qsort + usunięcie powtórzeń) i liczą:
+  * dokładny Jaccard |A∩B| / |A∪B| przez scalanie posortowanych zbiorów,
+  * MinHash: k funkcji h_i(x) = (a_i*x + b_i) mod (2^31-1), szkic to minima,
+    podobieństwo to udział zgodnych pozycji szkiców.
+  Współczynniki a_i, b_i daje splitmix64 z ziarna z wiersza poleceń (funkcja
+  wspolczynniki w wspolne.c), więc haszowanie jest takie samo we wszystkich wersjach.
+- Zbiory puste: J(pusty, pusty) = 1, J(pusty, niepusty) = 0. MinHash daje to samo,
+  bo szkic zbioru pustego to same 0xFFFFFFFF, a skróty są mniejsze od 2^31-1.
+- Kolejność listy top-k: malejąco po podobieństwie, przy remisie mniejszy numer zbioru.
+- Wyniki są ilorazami liczb całkowitych, liczonymi tak samo w każdej wersji, więc
+  pliki wyników OpenMP i MPI mają być identyczne z referencją (tolerancja 0).
+- Flagi kompilacji: -O2 we wszystkich wersjach CPU.
+- Format wyników:
+  tryb pary: "zbior1 zbior2 jaccard minhash"
+  tryb topk: "zapytanie miejsce dok_jaccard jaccard dok_minhash minhash"
+- OpenMP: dokumenty dla wątków przy usuwaniu duplikatów i budowie szkiców
+  (schedule(dynamic), bo zbiory mają różne rozmiary), pary dla wątków przy
+  porównaniach (dokładne: dynamic,64; szkice: static, bo zawsze k pozycji).
+  W top-k podobieństwa zapytania do dokumentów liczone równolegle, wybór listy
+  sekwencyjnie.
+- MPI: proces 0 wczytuje dane i rozsyła fragmenty korpusu (Scatterv). Każdy proces
+  usuwa duplikaty i liczy szkice swojego fragmentu.
+  Tryb par: replikacja zbiorów i szkiców (Allgatherv, osobne czasy), podział listy
+  par (Scatterv), zebranie wyników (Gatherv).
+  Tryb top-k: rozesłanie zapytań (Bcast, osobny czas), lokalne top-k na fragmencie,
+  zebranie list (Gather) i scalenie w procesie 0.
+  Wypisywane czasy faz to maksimum po procesach.
+
+
+URUCHOMIENIE (w kontenerze devbox-mpi)
+--------------------------------------
+  make
+  bash testy/testy.sh
+  ./generator 20000 50 200000 100 1000 0 1 11 dane
+      -> dane_korpus.txt, dane_zapytania.txt, dane_pary.txt
+  ./jaccard_sekw pary dane_korpus.txt dane_pary.txt 128 1 wynik_pary.txt
+  ./jaccard_sekw topk dane_korpus.txt dane_zapytania.txt 10 128 1 wynik_topk.txt
+  OMP_NUM_THREADS=6 ./jaccard_omp pary dane_korpus.txt dane_pary.txt 128 1 wynik_omp.txt
+  mpirun --use-hwthread-cpus -np 6 ./jaccard_mpi pary dane_korpus.txt dane_pary.txt 128 1 wynik_mpi.txt
+  (parametry: tryb, korpus, pary albo zapytania, [top], k, ziarno, plik wyniku)
+
+
+KROKI
+-----
+2026-11-25
+1. Ustalenie zakresu: top-k jako dodatek, dane z generatora, konwencja zbiorów
+   pustych, flagi -O2, podział pracy MPI.
+2. Moduł wspólny (wspolne.c, wspolne.h), generator, wersja referencyjna (jaccard_sekw).
+3. Testy (testy/testy.sh):
+   - małe dane z wynikami policzonymi ręcznie: puste zbiory, duplikaty, kolejność
+     tokenów, zbiory identyczne i rozłączne, największy token, top większe od
+     liczby zbiorów, remisy w rankingu,
+   - błąd MinHash: na małych zbiorach kolejnych liczb (1, 2, 3...) przy k=1000
+     odchylenie dochodziło do 0.06, bo funkcja liniowa daje na nich ciąg
+     arytmetyczny skrótów. Na losowych tokenach z generatora średni błąd zgadza się
+     z teorią (k=64: 0.0184, oczekiwany 0.0185). Dlatego dla małych danych
+     tolerancja 0.1, a dla danych z generatora co najmniej 99% par w granicy
+     4*sqrt(J(1-J)/k) (wyszło 5000 z 5000),
+   - OpenMP (1, 2, 3, 4, 12 wątków) i MPI (1, 2, 3, 4, 12 procesów) kontra referencja:
+     pliki wyników identyczne, także przy 9 zbiorach na 12 procesów i pustym korpusie,
+   - błędne dane (za duży token, ucięty plik, zły numer pary, brak pliku, k=0, top=0):
+     wszystkie wersje kończą się kodem błędu.
+4. Wersje OpenMP (jaccard_omp) i MPI (jaccard_mpi).
+5. Sprawdzenie testów celowymi błędami na kopii: wykryte odwrócone remisy w top-k,
+   zła suma zbiorów, J(pusty, pusty)=0, wyścig przy wyborze top-k w OpenMP,
+   złe przesunięcia szkiców i lokalne numery dokumentów w MPI.
+6. Pojedyncze uruchomienia (to nie są pomiary do raportu): 20000 zbiorów po 100-1000
+   tokenów, k=128, 200000 par, 50 zapytań:
+   - budowa szkiców: 2.20 s (1 wątek), 0.51 s (6), 0.42 s (12),
+   - porównania dokładne par: 0.80 s (1), 0.15 s (6), 0.10 s (12),
+   - MPI, 6 procesów: szkice 0.52 s, replikacja zbiorów 0.17 s, szkiców 0.03 s.
+   - Do sprawdzenia przy eksperymentach: OpenMP top-k, porównania szkiców przy
+     12 wątkach od 0.10 do 0.15 s, przy 6 wątkach 0.03 s (5 uruchomień).
+   - Pierwszy region OpenMP: z pustym regionem przed pomiarem różnica ok. 2 ms,
+     mniej niż rozrzut (od 0.119 do 0.133 s), więc bez zmian w kodzie.
+7. Repozytorium: .gitattributes wymusza końce linii LF, bo przy core.autocrlf=true
+   klon na Windowsie dostawał CRLF i testy.sh nie działał w kontenerze.
+
+
+DALSZE ETAPY
+------------
+- CUDA: karta RTX 3050 4 GB, sterownik jest; potrzebny obraz Dockera z nvcc.
+- Eksperymenty: rozgrzewka i co najmniej 5 pomiarów, mediana i rozrzut, S(p) i E(p),
+  kilka długości szkicu i kilka ziaren, błąd estymacji, zgodność rankingu, pary/s,
+  czas budowy szkiców, pamięć.
+- Dokumentacja: instrukcja, opis danych, konfiguracja sprzętu i oprogramowania,
+  surowe wyniki, skrypty wykresów, raport.
+
+
+PODZIAŁ PRACY
+-------------
+Jakub Jąkała:
+- format danych i generator,
+- wczytywanie, usuwanie duplikatów i dokładny Jaccard (tryb par),
+- wersja OpenMP,
+- CUDA: haszowanie i budowa szkiców na GPU,
+- pomiary OpenMP, wykresy przyspieszenia i efektywności.
+
+Osoba 2 (imię i nazwisko do uzupełnienia):
+- MinHash: funkcje skrótu, szkice i porównania szkiców,
+- wyszukiwanie top-k,
+- wersja MPI,
+- CUDA: porównania szkiców i top-k na GPU, grupowanie zadań o podobnej długości,
+- pomiary MPI i GPU, błąd estymacji i zgodność rankingu.
+
+Wspólnie: testy poprawności, raport, obrona.
