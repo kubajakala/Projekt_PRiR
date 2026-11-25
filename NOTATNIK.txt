@@ -1,8 +1,9 @@
 NOTATNIK - projekt PRiR, temat 34 (D05): podobieństwo zbiorów i szkice danych
 ================================================================================
 
-Zespół 2-osobowy. Zakres: porównania zadanej listy par (zakres podstawowy)
-oraz wyszukiwanie top-k względem zapytań (dodatek dla 2 osób).
+Zespół 2-osobowy: Jakub Jąkała, Sylwester Jarosz.
+Zakres: porównania zadanej listy par (zakres podstawowy) oraz wyszukiwanie top-k
+względem zapytań (dodatek dla 2 osób).
 
 
 USTALENIA
@@ -92,8 +93,16 @@ KROKI
      12 wątkach od 0.10 do 0.15 s, przy 6 wątkach 0.03 s (5 uruchomień).
    - Pierwszy region OpenMP: z pustym regionem przed pomiarem różnica ok. 2 ms,
      mniej niż rozrzut (od 0.119 do 0.133 s), więc bez zmian w kodzie.
+   - Do sprawdzenia przy eksperymentach: wczytanie w MPI (6 procesów) 1.61 s,
+     w wersji sekwencyjnej 0.86 s (po jednym uruchomieniu).
 7. Repozytorium: .gitattributes wymusza końce linii LF, bo przy core.autocrlf=true
    klon na Windowsie dostawał CRLF i testy.sh nie działał w kontenerze.
+8. README.md dla prowadzącego: treść karty tematu, zakres, podział pracy,
+   budowanie, uruchomienie, formaty plików, testy, metoda.
+9. Poprawka testy.sh: na 4 CPU mpirun -np 12 się nie uruchamiał, a test pokazywał
+   OK, bo porównywał stary plik wyniku. Teraz plik wyniku jest kasowany przed
+   każdym uruchomieniem, liczy się kod wyjścia, a mpirun ma --oversubscribe.
+   Sprawdzone na 12 i 4 CPU (0 błędów) i na kopii bez --oversubscribe (BLAD).
 
 
 DALSZE ETAPY
@@ -115,7 +124,7 @@ Jakub Jąkała:
 - CUDA: haszowanie i budowa szkiców na GPU,
 - pomiary OpenMP, wykresy przyspieszenia i efektywności.
 
-Osoba 2 (imię i nazwisko do uzupełnienia):
+Sylwester Jarosz:
 - MinHash: funkcje skrótu, szkice i porównania szkiców,
 - wyszukiwanie top-k,
 - wersja MPI,
