@@ -49,13 +49,14 @@ URUCHOMIENIE (w kontenerze devbox-mpi)
 --------------------------------------
   make
   bash testy/testy.sh
-  ./generator 20000 50 200000 100 1000 0 1 11 dane
-      -> dane_korpus.txt, dane_zapytania.txt, dane_pary.txt
-  ./jaccard_sekw pary dane_korpus.txt dane_pary.txt 128 1 wynik_pary.txt
-  ./jaccard_sekw topk dane_korpus.txt dane_zapytania.txt 10 128 1 wynik_topk.txt
-  OMP_NUM_THREADS=6 ./jaccard_omp pary dane_korpus.txt dane_pary.txt 128 1 wynik_omp.txt
-  mpirun --use-hwthread-cpus -np 6 ./jaccard_mpi pary dane_korpus.txt dane_pary.txt 128 1 wynik_mpi.txt
+  ./generator 20000 50 200000 100 1000 0 1 11 /tmp/dane
+      -> /tmp/dane_korpus.txt (116 MB), /tmp/dane_zapytania.txt, /tmp/dane_pary.txt
+  ./jaccard_sekw pary /tmp/dane_korpus.txt /tmp/dane_pary.txt 128 1 /tmp/wynik_pary.txt
+  ./jaccard_sekw topk /tmp/dane_korpus.txt /tmp/dane_zapytania.txt 10 128 1 /tmp/wynik_topk.txt
+  OMP_NUM_THREADS=6 ./jaccard_omp pary /tmp/dane_korpus.txt /tmp/dane_pary.txt 128 1 /tmp/wynik_omp.txt
+  mpirun --use-hwthread-cpus -np 6 ./jaccard_mpi pary /tmp/dane_korpus.txt /tmp/dane_pary.txt 128 1 /tmp/wynik_mpi.txt
   (parametry: tryb, korpus, pary albo zapytania, [top], k, ziarno, plik wyniku)
+  Duże dane trzymać poza repo (GitHub nie przyjmie pliku powyżej 100 MB).
 
 
 KROKI
